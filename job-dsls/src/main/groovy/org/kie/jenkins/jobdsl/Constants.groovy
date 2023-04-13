@@ -45,7 +45,8 @@ class Constants {
     static final String CURRENT_PROD_VERSION = '7.12.2'
     static final String BAMOE_NEXT_PROD_VERSION = '8.0.3'
     static final String BAMOE_CURRENT_PROD_VERSION = '8.0.2'
-    static final String OSBS_BUILD_TARGET = 'rhba-7-rhel-8-containers-candidate'
+    static final String OSBS_BUILD_TARGET = 'rhba-7-rhel-8-nightly-containers-candidate'
+    static final String BAMOE_OSBS_BUILD_TARGET = 'ibm-bamoe-rhel-8-nightly-containers-candidate'
     static final String KERBEROS_KEYTAB = 'rhba-osbs-builder-keytab'
     static final String CEKIT_BUILD_OPTIONS = ''
     static final String KERBEROS_PRINCIPAL = ''
@@ -69,6 +70,14 @@ class Constants {
     static final String LABEL_KIE_RHEL = 'kie-rhel||rhos-01-kie-rhel&&!built-in'
     static final String CREDENTIALS_ID = 'kie-ci'
     static final String CREDENTIALS_ID_TOKEN = 'kie-ci'
+    static final String RHPAM_KOGITO_OPERTOR_BRANCH = '1.13.x'
+    static final String RHPAM_KOGITO_IMAGE_BRANCH = '1.13.x'
+    static final String BAMOE_BA_OPERTOR_BRANCH = 'release-v7.13.x-blue'
+    static final String BAMOE_KOGITO_OPERTOR_BRANCH = '1.13.x-blue'
+    static final String BAMOE_KOGITO_IMAGE_BRANCH = '1.13.x-blue'
+    static final String RHPAM_BA_OPERTOR_CEKIT_OSBS_SUBDIR = '/home/jenkins/.cekit/osbs/containers/rhpam-7-operator'
+    static final String BAMOE_BA_OPERTOR_CEKIT_OSBS_SUBDIR = '/home/jenkins/.cekit/osbs/containers/ibm-bamoe-operator'
+
     /**
      * The value of Use custom child workspace field for matrix jobs - the SHORT_COMBINATION environment variable
      * is handled by the short-workspace-path Jenkins plugin.

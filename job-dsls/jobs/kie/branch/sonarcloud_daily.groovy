@@ -45,8 +45,7 @@ def final REPO_CONFIGS = [
         ],
         "droolsjbpm-integration" : [
                 timeoutMins: 240
-        ],
-        "optaweb-employee-rostering": []
+        ]
 ]
 
 for (repoConfig in REPO_CONFIGS) {
@@ -93,13 +92,6 @@ for (repoConfig in REPO_CONFIGS) {
             }
         }
         concurrentBuild()
-
-        properties {
-            ownership {
-                primaryOwnerId("mbiarnes")
-                coOwnerIds("mbiarnes")
-            }
-        }
 
         jdk("kie-jdk11")
 

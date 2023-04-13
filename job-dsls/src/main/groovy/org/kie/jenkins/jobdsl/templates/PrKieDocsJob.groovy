@@ -22,7 +22,7 @@ import org.kie.jenkins.jobdsl.Constants
  * PR verification Job Template
  *
  */
-class PrVerificationJob extends BasicJob {
+class PrKieDocsJob extends BasicJob {
 
     /**
      * Adds folder structure for PR job.
@@ -198,6 +198,10 @@ class PrVerificationJob extends BasicJob {
                     // Specifies the goals to execute including other command line options.
                     goals(mavenGoals)
                 }
+            }
+
+            steps {
+                shell('zip -r kie-docs.zip doc-content/*/target/generated-docs/html_single/**/*')
             }
 
             // Adds post-build actions to the job.

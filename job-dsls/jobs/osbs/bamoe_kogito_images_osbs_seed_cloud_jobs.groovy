@@ -1,37 +1,39 @@
+package osbs
+
 import org.kie.jenkins.jobdsl.Constants
 
-def folderPath = 'OSBS/bamoe-images'
+def folderPath = 'OSBS/bamoe-kogito-images'
 folder('OSBS')
-folder('OSBS/bamoe-images')
+folder('OSBS/bamoe-kogito-images')
 // Job Description
-String jobDescription = 'Job responsible for seed jobs to building bamoe openshift image'
+String jobDescription = 'Job responsible for seed jobs to building bamoe kogito images'
 
 //Define Variables
 def prodComponent = [
-        'bamoe-businesscentral', 'bamoe-businesscentral-monitoring',
-        'bamoe-controller', 'bamoe-kieserver', 'bamoe-smartrouter',
-        'bamoe-process-migration', 'bamoe-dashbuilder']
+        'bamoe-kogito-builder-rhel8', 'bamoe-kogito-runtime-jvm-rhel8', 'bamoe-kogito-runtime-native-rhel8']
 
 def buildDate = Constants.BUILD_DATE
 def prodVersion = Constants.BAMOE_NEXT_PROD_VERSION
-def osbsBuildTarget = Constants.BAMOE_OSBS_BUILD_TARGET
+def osbsBuildTarget = Constants.OSBS_BUILD_TARGET
 def cekitBuildOptions = Constants.CEKIT_BUILD_OPTIONS
 def osbsBuildUser = Constants.OSBS_BUILD_USER
 def kerberosPrincipal = Constants.KERBEROS_PRINCIPAL
 def kerberosKeytab = Constants.KERBEROS_KEYTAB
 def kerberosCred = Constants.KERBEROS_CRED
 def imageRepo = Constants.IMAGE_REPO
-def imageBranch = Constants.BAMOE_IMAGE_BRANCH
+def imageBranch = Constants.IMAGE_BRANCH
 def imageSubdir = Constants.IMAGE_SUBDIR
 def gitUser = Constants.GIT_USER
 def gitEmail = Constants.GIT_EMAIL
 def cekitCacheLocal = Constants.CEKIT_CACHE_LOCAL
 def verbose = Constants.VERBOSE
+def githubOrgUnit = Constants.GITHUB_ORG_UNIT
+def bamoeKogitoImageBranch = Constants.BAMOE_KOGITO_IMAGE_BRANCH
+def bamoeKogitoImageCekitOSBSSubdir = Constants.BAMOE_BA_OPERTOR_CEKIT_OSBS_SUBDIR
 
 prodComponent.each { Component ->
 
     pipelineJob("${folderPath}/${Component}") {
-
         parameters {
             stringParam('BUILD_DATE', "${buildDate}")
             stringParam('PROD_VERSION', "${prodVersion}")
@@ -48,21 +50,18 @@ prodComponent.each { Component ->
             stringParam('GIT_USER', "${gitUser}")
             stringParam('GIT_EMAIL', "${gitEmail}")
             stringParam('CEKIT_CACHE_LOCAL', "${cekitCacheLocal}")
-            stringParam('PROPERTY_FILE_URL', '', 'the properties file url for the given build. It is expected that the property file url points to the nightly builds and contains the build date within it.')
             stringParam('VERBOSE', "${verbose}")
-        }
-
-        logRotator {
-            numToKeep(5)
+            stringParam('GITHUB_ORG_UNIT', "${githubOrgUnit}")
+            stringParam('BAMOE_KOGITO_IMAGE_BRANCH', "${bamoeKogitoImageBranch}")
+            stringParam('CEKIT_OSBS_SUBDIR', "/home/jenkins/.cekit/osbs/containers/${Component}")
         }
 
         definition {
             cps {
-
                 script('''
 
                     library 'jenkins-pipeline-shared-libraries'
-                    
+
                     TIMEOUT = 2
 
                     pipeline {
@@ -84,13 +83,13 @@ prodComponent.each { Component ->
                                 steps {
                                     cleanWs()
                                 }
-                            }                         
-                        
+                            } 
+                            
                             stage('Building image') {
                                 steps {
                                     // Add the working directory to the current path so any scripts dropped there are on the path
-                                    withEnv(["PATH+W=$WORKSPACE"]) {
-                                        sh 'rm -rf ${WORKSPACE}/{*,.*} || true'
+                                    withEnv(['PATH+W=$WORKSPACE']) {
+                                        sh "rm -rf ${WORKSPACE}/{*,.*} || true"
                                         script {
                                             if (env.KERBEROS_CRED) {
                                                 withCredentials([usernamePassword(credentialsId: env.KERBEROS_CRED, usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
@@ -99,7 +98,7 @@ prodComponent.each { Component ->
                                             } else if (env.KERBEROS_KEYTAB) {
                                                 withCredentials([file(credentialsId: env.KERBEROS_KEYTAB, variable: 'FILE')]) {
                                                     if (!env.KERBEROS_PRINCIPAL) {
-                                                          echo "Reading the Kerberos Principal from provided Keytab..."
+                                                          echo 'Reading the Kerberos Principal from provided Keytab...'
                                                           def get_principal_from_file = sh(returnStdout: true, script: \'\'\'
                                                               #!/bin/bash
                                                               klist -kt $FILE |grep REDHAT.COM | awk -F" " \'NR==1{print $4}\'
@@ -121,7 +120,7 @@ prodComponent.each { Component ->
                                     echo "Persisting the ${env.BUILT_IMAGE} to a file..."
                                     writeFile file: "${PROD_COMPONENT}-image-location.txt", text: "${env.BUILT_IMAGE}"
                                 }    
-                            } 
+                            }
                             
                             stage('execute behave tests') {
                                 steps {
@@ -131,21 +130,17 @@ prodComponent.each { Component ->
                                         sh "docker pull ${env.BUILT_IMAGE}"
                                         
                                         // tag to the expected image name
-                                        def tagTo = "ibm-bamoe/${env.PROD_COMPONENT}-rhel8:${env.PROD_VERSION}"
+                                        def tagTo = "ibm-bamoe/${env.PROD_COMPONENT}:${env.PROD_VERSION}"
                                         sh "docker tag ${env.BUILT_IMAGE} ${tagTo}"
-                                        
-                                        def get_dir = sh(returnStdout: true, script: \'\'\'
-                                            #!/bin/bash
-                                            echo ${PROD_COMPONENT} | cut -d- -f2-
-                                        \'\'\')
-                                        
+                                        // set IMAGE_VERSION with rc on it to avoid the image tag.
                                         catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                                            sh "source ~/virtenvs/cekit/bin/activate && cd rhba-repo/${get_dir.trim()} && cekit --verbose --redhat test --overrides-file branch-overrides.yaml behave"
+                                            sh "source ~/virtenvs/cekit/bin/activate && make build-image image_name=${env.PROD_COMPONENT} ignore_build=true ignore_test=false IMAGE_VERSION=0.0.0-rc"
                                         }
                                     }    
                                 }    
-                            } 
+                            }    
                         }
+                            
                         post {
                             always {
                                 archiveArtifacts artifacts: "${PROD_COMPONENT}-image-location.txt", onlyIfSuccessful: true
@@ -153,132 +148,89 @@ prodComponent.each { Component ->
                             cleanup {
                                 cleanWs()
                             }
-                        }    
-                    } 
-                        
+                        }                          
+                    }  
+                            
+                            
+                    // Auxiliary Functions        
                     private void validateParameters(required, optionals){
                         // Check if all required params are supplied
                         for ( param in required ) {
                             def arg = param.value[0]
                             def flag = param.value[1]
-                            if(!arg){
-                                error "$param.key parameter is required but was not specified."
+                            if(!param.value[0]){
+                                error "${param.key} parameter is required but was not specified."
                             }
                         }
                     }
 
                     private void mainProcess(user, password, keytab){
-                         /// Parameters available for the build
+                        // Parameters available for the build.
                         def REQUIRED_BUILD_PARAMETERS = [
-                           'PROD_VERSION': [PROD_VERSION, '-v'],
-                           'PROD_COMPONENT': [PROD_COMPONENT, '-c'],
-                           'OSBS_BUILD_TARGET': [OSBS_BUILD_TARGET, '-t'],
-                        ]
-                        def OPTIONAL_BUILD_PARAMETERS = [
-                           'PROPERTY_FILE_URL': [PROPERTY_FILE_URL, '-f'],
-                           'KERBEROS_PASSWORD': [password, '-s'],
-                           'KERBEROS_PRINCIPAL': [user, '-p'],
-                           'KERBEROS_KEYTAB': [keytab, '-k'],
-                           'OSBS_BUILD_USER': [OSBS_BUILD_USER, '-i'],
-                           'BUILD_DATE': [BUILD_DATE, '-b'],
-                           'GIT_USER': [GIT_USER, '-u'],
-                           'GIT_EMAIL': [GIT_EMAIL, '-e'],
-                           'CEKIT_BUILD_OPTIONS': [CEKIT_BUILD_OPTIONS, '-o'],
-                           'CEKIT_CACHE_LOCAL': [CEKIT_CACHE_LOCAL, '-l'],
-                        ]
-
-                        def OPTIONAL_BUILD_SWITCHES = [
-                          'VERBOSE': [VERBOSE, '-g'],
-                        ]
-
-                        def REQUIRED_DOWNLOAD_PARAMETERS = [
                             'PROD_VERSION': [PROD_VERSION, '-v'],
                             'PROD_COMPONENT': [PROD_COMPONENT, '-c'],
+                            'OSBS_BUILD_TARGET': [OSBS_BUILD_TARGET, '-t'],
+                            'CEKIT_OSBS_SUBDIR': [CEKIT_OSBS_SUBDIR, '-d'],
                         ]
-
-                        def OPTIONAL_DOWNLOAD_PARAMETERS = [
-                            'IMAGE_REPO': [IMAGE_REPO, '-r'],
-                            'IMAGE_BRANCH': [IMAGE_BRANCH, '-n'],
-                            'IMAGE_SUBDIR': [IMAGE_SUBDIR, '-d'],
+                        def OPTIONAL_BUILD_PARAMETERS = [
+                            'KERBEROS_PASSWORD': [password, '-s'],
+                            'KERBEROS_PRINCIPAL': [user, '-p'],
+                            'KERBEROS_KEYTAB': [keytab, '-k'],
+                            'OSBS_BUILD_USER': [OSBS_BUILD_USER, '-i'],
+                            'BUILD_DATE': [BUILD_DATE, '-b'],
+                            'GIT_USER': [GIT_USER, '-u'],
+                            'GIT_EMAIL': [GIT_EMAIL, '-e'],
+                            'CEKIT_BUILD_OPTIONS': [CEKIT_BUILD_OPTIONS, '-o'],
+                            'CEKIT_CACHE_LOCAL': [CEKIT_CACHE_LOCAL, '-l'],
                         ]
-
-                        // The download script is in the image, but build.sh and build-overrides.sh which it calls will be downloaded
-                        def download_command = "/opt/rhba/download.sh"
+                        def OPTIONAL_BUILD_SWITCHES = [
+                            'VERBOSE': [VERBOSE, '-g'],
+                        ]
+       
+                        // The build script is in the image, but build.sh and build-overrides.sh which it calls will be downloaded
                         def build_command = 'build-osbs.sh'
-
-                        // Create the download command to set up the build directory
-                        validateParameters(REQUIRED_DOWNLOAD_PARAMETERS, OPTIONAL_DOWNLOAD_PARAMETERS)
-                        for(param in REQUIRED_DOWNLOAD_PARAMETERS){
-                            def arg = param.value[0]
-                            def flag = param.value[1]
-                            download_command += " ${flag} ${arg}"
-                        }
-
-                        for(param in OPTIONAL_DOWNLOAD_PARAMETERS){
-                            def arg = param.value[0]
-                            def flag = param.value[1]
-                            if(arg) download_command+= " ${flag} ${arg}"
-                        }
-
-                        download_command += " -w ${WORKSPACE}"
-
+                        
                         // Create the build command
                         validateParameters(REQUIRED_BUILD_PARAMETERS, OPTIONAL_BUILD_PARAMETERS)
 
                         for(param in REQUIRED_BUILD_PARAMETERS){
-                            def arg = param.value[0]
-                            def flag = param.value[1]
-                            build_command += " ${flag} ${arg}"
+                            build_command += " ${param.value[1]} ${param.value[0]}"
                         }
 
                         for(param in OPTIONAL_BUILD_PARAMETERS){
                             def arg = param.value[0]
                             def flag = param.value[1]
-                            if(arg) build_command+= " ${flag} ${arg}"
+                            build_command+= arg ? " ${flag} ${arg}" : ''
                         }
 
                         for(param in OPTIONAL_BUILD_SWITCHES){
                             def arg = param.value[0]
                             def flag = param.value[1]
-                            if(arg == "true") build_command+= " ${flag}"
+                            build_command+= arg == 'true' ? " ${flag}" : ''
                         }
 
                         build_command +=" -w ${WORKSPACE}"
-
-                        // Run the download script to set up the build. This will select the right branch
-                        // and return the component directory path where the build needs to take path
-                        def component_path = sh(script: "$download_command 2>&1", returnStdout: true)
-                        println component_path
-
-                        // This gets the last token of output from the script, which is the path to build in
-                        component_path = component_path.tokenize().last()
-
-                        // Run the build script
-                        dir(component_path) {
-                            sh "source ~/virtenvs/cekit/bin/activate && $build_command | tee output.txt"
+                        // checkout the kogito-images repository in the target branch.                  
+                        checkout(githubscm.resolveRepository('kogito-images', GITHUB_ORG_UNIT, BAMOE_KOGITO_IMAGE_BRANCH, false))
+                         
+                        // Run the build script that should be into the operator hack folder
+                        dir('scripts') {
+                            sh "source ~/virtenvs/cekit/bin/activate && ./${build_command} | tee ../output.txt"
                         }
 
                         // post processing
                         // query the built image from osbs using brew cli
-                        dir(component_path) {
-                            def get_image_name = sh(returnStdout: true, script: \'\'\'
-                                RESULT=$(/usr/bin/brew call --json-output getTaskResult $( cat output.txt| grep -oP 'Task \\\\d{8}' | cut -d" " -f2) | jq -nre "input.repositories[0]")
-                                if [ $? != 0 ]; then
-                                    echo "Unable to find build image - $RESULT"
-                                    exit 1
-                                fi
-                                # if no issue happens, the result should be the built image
-                                echo ${RESULT}
-                            \'\'\')
-                            env.BUILT_IMAGE = "${get_image_name.trim()}"
-                          }
-                      }
-                      
-                      
-
-                    
-
-    
+                        def get_image_name = sh(returnStdout: true, script: \'\'\'
+                            RESULT=$(/usr/bin/brew call --json-output getTaskResult $( cat output.txt| grep -oP 'Task \\\\d{8}' | cut -d" " -f2) | jq -nre "input.repositories[0]")
+                            if [ $? != 0 ]; then
+                                echo "Unable to find build image - $RESULT"
+                                exit 1
+                            fi
+                            # if no issue happens, the result should be the built image
+                            echo ${RESULT}
+                            \'\'\')       
+                        env.BUILT_IMAGE = "${get_image_name.trim()}"
+                    }
                 '''.stripIndent())
                 sandbox()
             }

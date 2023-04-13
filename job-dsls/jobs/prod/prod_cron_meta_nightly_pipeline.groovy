@@ -33,19 +33,19 @@ def KOGITO_BLUE_NEXT_PRODUCT_CONFIG_BRANCH="kogito/1.13.x-blue"
 def SERVERLESS_LOGIC_NEXT_PRODUCT_BRANCH='main-integration-quarkus-lts'
 def SERVERLESS_LOGIC_NEXT_PRODUCT_CONFIG_BRANCH="master"
 
-// def SERVERLESS_LOGIC_CURRENT_PRODUCT_VERSION='1.27.0'
-// def SERVERLESS_LOGIC_KOGITO_CURRENT_PRODUCT_VERSION='1.32.0'
-// def SERVERLESS_LOGIC_DROOLS_CURRENT_PRODUCT_VERSION='8.32.0'
-// def SERVERLESS_LOGIC_CURRENT_PRODUCT_BRANCH='1.32.x'
-// def SERVERLESS_LOGIC_CURRENT_PRODUCT_CONFIG_BRANCH="openshift-serverless-logic/1.32.x"
+// def SERVERLESS_LOGIC_CURRENT_PRODUCT_VERSION='1.28.0'
+// def SERVERLESS_LOGIC_KOGITO_CURRENT_PRODUCT_VERSION='1.35.0'
+// def SERVERLESS_LOGIC_DROOLS_CURRENT_PRODUCT_VERSION='8.35.0'
+// def SERVERLESS_LOGIC_CURRENT_PRODUCT_BRANCH='1.35.x'
+// def SERVERLESS_LOGIC_CURRENT_PRODUCT_CONFIG_BRANCH="openshift-serverless-logic/1.35.x"
 
 def RHBOP_NEXT_PRODUCT_BRANCH='main'
 def RHBOP_NEXT_PRODUCT_CONFIG_BRANCH='master'
 
-def RHBOP_CURRENT_PRODUCT_VERSION='8.33.0'
-def RHBOP_CURRENT_PRODUCT_BRANCH='8.33.x'
-def RHBOP_CURRENT_PRODUCT_CONFIG_BRANCH='rhbop/8.33.x'
-def RHBOP_CURRENT_DROOLS_VERSION='8.33.0'
+// def RHBOP_CURRENT_PRODUCT_VERSION='8.33.0'
+// def RHBOP_CURRENT_PRODUCT_BRANCH='8.33.x'
+// def RHBOP_CURRENT_PRODUCT_CONFIG_BRANCH='rhbop/8.33.x'
+// def RHBOP_CURRENT_DROOLS_VERSION='8.29.0'
 
 // Should be uncommented and used with kogitoWithSpecDroolsNightlyStage once Next is set for RHPAM 7.14.0 (or main)
 // def DROOLS_NEXT_PRODUCT_VERSION='8.13.0'
@@ -53,6 +53,14 @@ def RHBOP_CURRENT_DROOLS_VERSION='8.33.0'
 // Should be uncommented and used with kogitoWithSpecDroolsNightlyStage once Current is set for RHPAM 7.14.0
 // def DROOLS_CURRENT_PRODUCT_VERSION= OPTAPLANNER_CURRENT_PRODUCT_VERSION
 
+// Drools Ansible Integration
+def DAI_NEXT_PRODUCT_BRANCH='main'
+def DAI_NEXT_PRODUCT_CONFIG_BRANCH='master'
+
+def DAI_CURRENT_PRODUCT_VERSION='1.0.0'
+def DAI_CURRENT_PRODUCT_BRANCH='1.0.x'
+def DAI_CURRENT_PRODUCT_CONFIG_BRANCH='drools-ansible-integration/1.0.x'
+def DAI_CURRENT_DROOLS_VERSION='8.36.0'
 
 def metaJob="""
 pipeline{
@@ -80,7 +88,11 @@ pipeline{
     
         // RHBOP
         ${rhbopNightlyStage(RHBOP_NEXT_PRODUCT_BRANCH, RHBOP_NEXT_PRODUCT_CONFIG_BRANCH)}
-        ${rhbopNightlyStage(RHBOP_CURRENT_PRODUCT_BRANCH, RHBOP_CURRENT_PRODUCT_CONFIG_BRANCH, RHBOP_CURRENT_PRODUCT_VERSION, RHBOP_CURRENT_DROOLS_VERSION)}
+        //{rhbopNightlyStage(RHBOP_CURRENT_PRODUCT_BRANCH, RHBOP_CURRENT_PRODUCT_CONFIG_BRANCH, RHBOP_CURRENT_PRODUCT_VERSION, RHBOP_CURRENT_DROOLS_VERSION)}
+
+        // Drools Ansible Integration
+        ${droolsAnsibleIntegrationNightlyStage(DAI_NEXT_PRODUCT_BRANCH, DAI_NEXT_PRODUCT_CONFIG_BRANCH)}
+        ${droolsAnsibleIntegrationNightlyStage(DAI_CURRENT_PRODUCT_BRANCH, DAI_CURRENT_PRODUCT_CONFIG_BRANCH, DAI_CURRENT_PRODUCT_VERSION, DAI_CURRENT_DROOLS_VERSION, DAI_CURRENT_PRODUCT_BRANCH)}
     }
 }
 """
@@ -213,7 +225,24 @@ String rhbopNightlyStage(String branch, String configBranch, String version = ''
                         [\$class: 'StringParameterValue', name: 'PRODUCT_VERSION', value: "${version}"],
                         [\$class: 'StringParameterValue', name: 'DROOLS_PRODUCT_VERSION', value: '${droolsVersion}'],
                         [\$class: 'StringParameterValue', name: 'CONFIG_BRANCH', value: "${configBranch}"],
-                        [\$class: 'BooleanParameterValue', name: 'SKIP_TESTS', value: true]
+                ]
+            }
+        }
+    """
+}
+
+String droolsAnsibleIntegrationNightlyStage(String branch, String configBranch, String version = '', String droolsVersion = '', String definitionFileBranch = 'main') {
+    // when version or droolsVersion are empty, the Jenkins job will get them from the main branch pom
+    return """
+        stage('trigger Drools Ansible Integration nightly job ${branch}') {
+            steps {
+                build job: 'drools-ansible-integration.nightly/${branch}', propagate: false, wait: true, parameters: [
+                        [\$class: 'StringParameterValue', name: 'NEXUS_DEPLOYMENT_REPO_URL', value: 'https://bxms-qe.rhev-ci-vms.eng.rdu2.redhat.com:8443/nexus/service/local/repositories/scratch-release-drools-ansible-integration-${getNexusFromVersion(version)}/content-compressed'],
+                        [\$class: 'StringParameterValue', name: 'PRODUCT_VERSION', value: "${version}"],
+                        [\$class: 'StringParameterValue', name: 'DROOLS_PRODUCT_VERSION', value: '${droolsVersion}'],
+                        [\$class: 'StringParameterValue', name: 'CONFIG_BRANCH', value: "${configBranch}"],
+                        [\$class: 'StringParameterValue', name: 'DEFINITION_FILE_OWNER', value: 'kiegroup'],
+                        [\$class: 'StringParameterValue', name: 'DEFINITION_FILE_BRANCH', value: "${definitionFileBranch}"],
                 ]
             }
         }

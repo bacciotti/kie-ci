@@ -46,18 +46,6 @@ def final REPO_CONFIGS = [
                         "integration-tests"        : "true",
                         "maven.test.failure.ignore": "true"
                 ]
-        ],
-        "optaweb-employee-rostering" : [
-                artifactsToArchive   : DEFAULTS["artifactsToArchive"] + [
-                        "**/target/configurations/cargo-profile/profile-log.txt"
-                ],
-                downstreamRepos      : ["optaweb-vehicle-routing-7.x"]
-        ],
-        "optaweb-vehicle-routing"    : [
-                artifactsToArchive   : DEFAULTS["artifactsToArchive"] + [
-                        "**/target/configurations/cargo-profile/profile-log.txt"
-                ],
-                downstreamRepos      : []
         ]
 ]
 
@@ -105,13 +93,6 @@ for (repoConfig in REPO_CONFIGS) {
                         reference("/home/jenkins/git-repos/${repo}.git")
                     }
                 }
-            }
-        }
-
-        properties {
-            ownership {
-                primaryOwnerId("mbiarnes")
-                coOwnerIds("almorale", "anstephe")
             }
         }
 
